@@ -7,7 +7,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use: "jones",
+	Use: "sudd",
 	Short: "A load testing tool.",
 
 }
