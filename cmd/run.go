@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"sync"
 	"time"
+	"strings"
 
 	"encoding/json"
 
@@ -26,6 +27,10 @@ var duration string
 var rps      int
 var output string
 var flagScenarioFile string
+var method  string
+var headers []string
+var timeout string
+
 
 
 
@@ -205,6 +210,21 @@ go func() {
 		start := time.Now()
 
 		// WaitGroup to track job submitter goroutine
+		// parse headers
+		headerMap := map[string]string{}
+		for _, h := range headers {
+			parts := strings.SplitN(h, ":", 2)
+			if len(parts) == 2 {
+				headerMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+			}
+		}
+
+		// parse timeout
+		reqTimeout, err := time.ParseDuration(timeout)
+		if err != nil {
+			reqTimeout = 10 * time.Second
+		}
+
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go func() {
@@ -217,7 +237,12 @@ go func() {
 					if limiter != nil {
 						limiter.Wait(ctx)
 					}
-					p.Submit(worker.Job{URL: url})
+					p.Submit(worker.Job{
+						URL:     url,
+						Method:  method,
+						Headers: headerMap,
+						Timeout: reqTimeout,
+					})
 				}
 			}
 		}()
@@ -321,7 +346,9 @@ func init() {
 	runCmd.Flags().IntVar(&rps,         "rps",      0,     "Max requests per second (0 = unlimited)")
 	runCmd.Flags().StringVar(&output, "output", "text", "Output format: text or json")
 	runCmd.Flags().StringVar(&flagScenarioFile, "scenario", "", "Path to YAML scenario file")
-
+	runCmd.Flags().StringVar(&method, "method", "GET", "HTTP method (GET, POST, PUT, DELETE)")
+	runCmd.Flags().StringArrayVar(&headers, "header", []string{}, "HTTP headers (e.g. --header 'Authorization: Bearer token')")
+	runCmd.Flags().StringVar(&timeout, "timeout", "10s", "Per-request timeout")
 
 	rootCmd.AddCommand(runCmd)
 }

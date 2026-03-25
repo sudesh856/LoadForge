@@ -1,1 +1,25 @@
 .env
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+sudd
+jones
+sudd-linux
+sudd-macos
+sudd-windows.exe
+
+# Test binary
+*.test
+
+# Go build cache
+*.out
+
+# Dependency directory
+vendor/
+
+# IDE
+.vscode/
+.idea/
