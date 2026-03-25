@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 type ChainStore struct {
+	mu   sync.RWMutex
 	data map[string]string
 }
 
@@ -15,15 +17,15 @@ func NewChainStore() *ChainStore {
 }
 
 func (c *ChainStore) Store(endpointName string, body []byte, extract map[string]string) {
-	if len(extract) == 0{
+	if len(extract) == 0 {
 		return
 	}
-
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return
 	}
-
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for varName, jsonKey := range extract {
 		key := strings.TrimPrefix(jsonKey, "$.")
 		val := getNestedValue(parsed, key)
@@ -34,13 +36,17 @@ func (c *ChainStore) Store(endpointName string, body []byte, extract map[string]
 }
 
 func (c *ChainStore) Get(endpointName, varName string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	val, ok := c.data[endpointName+"."+varName]
 	return val, ok
 }
 
 func (c *ChainStore) ToVars() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make(map[string]string)
-	for k,v := range c.data {
+	for k, v := range c.data {
 		out[k] = v
 	}
 	return out
