@@ -26,8 +26,9 @@ func (c *ChainStore) Store(endpointName string, body []byte, extract map[string]
 
 	for varName, jsonKey := range extract {
 		key := strings.TrimPrefix(jsonKey, "$.")
-		if val, ok := parsed[key]; ok {
-			c.data[endpointName+"."+varName] = fmt.Sprintf("%v", val)
+		val := getNestedValue(parsed, key)
+		if val != "" {
+			c.data[endpointName+"."+varName] = val
 		}
 	}
 }
@@ -43,4 +44,28 @@ func (c *ChainStore) ToVars() map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+
+func getNestedValue(data map[string]interface{}, path string) string {
+    parts := strings.Split(path, ".")
+    current := data
+
+    for i, part := range parts {
+        val, ok := current[part]
+        if !ok {
+            return ""
+        }
+        // if last part, return the value
+        if i == len(parts)-1 {
+            return fmt.Sprintf("%v", val)
+        }
+        // otherwise go deeper
+        nested, ok := val.(map[string]interface{})
+        if !ok {
+            return ""
+        }
+        current = nested
+    }
+    return ""
 }
