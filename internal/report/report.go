@@ -8,20 +8,20 @@ import (
 )
 
 type Summary struct {
-	URL           string
-	ScenarioName  string
-	DurationSecs  float64
-	TotalRequests int64
-	AvgRPS        float64
-	P50           int64
-	P75           int64
-	P90           int64
-	P95           int64
-	P99           int64
-	P999          int64
-	Max           int64
-	Errors        int64
-	ErrorRate     float64
+	URL           string  `json:"url"`
+	ScenarioName  string  `json:"scenario_name"`
+	DurationSecs  float64 `json:"duration_secs"`
+	TotalRequests int64   `json:"total_requests"`
+	AvgRPS        float64 `json:"avg_rps"`
+	P50           int64   `json:"p50_ms"`
+	P75           int64   `json:"p75_ms"`
+	P90           int64   `json:"p90_ms"`
+	P95           int64   `json:"p95_ms"`
+	P99           int64   `json:"p99_ms"`
+	P999          int64   `json:"p999_ms"`
+	Max           int64   `json:"max_ms"`
+	Errors        int64   `json:"errors"`
+	ErrorRate     float64 `json:"error_rate_pct"`
 }
 
 const htmlTmpl = `<!DOCTYPE html>

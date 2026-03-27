@@ -3,12 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
-	"strings"
-	
 
 	"encoding/json"
 
@@ -16,13 +16,13 @@ import (
 	"github.com/sudesh856/LoadForge/internal/dashboard"
 	"github.com/sudesh856/LoadForge/internal/metrics"
 	"github.com/sudesh856/LoadForge/internal/pool"
+	"github.com/sudesh856/LoadForge/internal/ramp"
 	"github.com/sudesh856/LoadForge/internal/report"
 	"github.com/sudesh856/LoadForge/internal/reporter"
+	"github.com/sudesh856/LoadForge/internal/scenario"
 	"github.com/sudesh856/LoadForge/internal/store"
 	"github.com/sudesh856/LoadForge/internal/worker"
 	"golang.org/x/time/rate"
-	"github.com/sudesh856/LoadForge/internal/ramp"
-	"github.com/sudesh856/LoadForge/internal/scenario"
 )
 
 var url      string
@@ -80,12 +80,18 @@ var runCmd = &cobra.Command{
 			defer cancelSignal()
 
 			// ── web dashboard ──
-			var dash *dashboard.Server
-			if webFlag {
-				dash = dashboard.New(cancelSignal)
-				dash.Start(":7070", dashboard.DashboardHTML)
-				fmt.Println("dashboard: http://localhost:7070")
-			}
+			// ── web dashboard ──
+var dash *dashboard.Server
+if webFlag {
+    st, err := store.New("runs.db")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    dash = dashboard.New(cancelSignal, st)
+    dash.Start(":7070")
+    fmt.Println("dashboard: http://localhost:7070")
+}
 
 			ctrl := ramp.New(rampStages)
 			go ctrl.Run(ctx)
@@ -220,12 +226,18 @@ var runCmd = &cobra.Command{
 		defer cancelSignal()
 
 		// ── web dashboard ──
-		var dash *dashboard.Server
-		if webFlag {
-			dash = dashboard.New(cancelSignal)
-			dash.Start(":7070", dashboard.DashboardHTML)
-			fmt.Println("dashboard: http://localhost:7070")
-		}
+		// ── web dashboard ──
+var dash *dashboard.Server
+if webFlag {
+    st, err := store.New("runs.db")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    dash = dashboard.New(cancelSignal, st)
+    dash.Start(":7070")
+    fmt.Println("dashboard: http://localhost:7070")
+}
 
 		var limiter *rate.Limiter
 		if rps > 0 {

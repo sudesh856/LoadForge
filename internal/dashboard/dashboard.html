@@ -9,25 +9,68 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0f0f0f; color: #e0e0e0; font-family: monospace; padding: 20px; }
   h1 { color: #00ff88; margin-bottom: 20px; font-size: 1.5rem; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; }
-  .card h2 { color: #888; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; }
+  h2.section { color: #00ff88; font-size: 1rem; margin: 24px 0 12px; border-bottom: 1px solid #333; padding-bottom: 6px; }
+
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
   .stat { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 12px; text-align: center; }
   .stat .value { font-size: 1.8rem; font-weight: bold; color: #00ff88; }
   .stat .label { font-size: 0.7rem; color: #888; margin-top: 4px; }
+
   .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
   .chart-card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; }
-  .chart-card h2 { color: #888; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; }
-  button { background: #ff4444; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-family: monospace; font-size: 1rem; }
-  button:hover { background: #ff6666; }
+  .chart-card h3 { color: #888; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; }
+
+  /* endpoint table */
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .card h3 { color: #888; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { color: #666; font-weight: normal; text-align: left; padding: 6px 10px; border-bottom: 1px solid #2a2a2a; }
+  td { padding: 6px 10px; border-bottom: 1px solid #1e1e1e; }
+  tr:last-child td { border-bottom: none; }
+  .ep-name { color: #00ff88; }
+  .ep-err { color: #ff4444; }
+  .empty-row td { color: #444; text-align: center; }
+
+  /* buttons */
+  .btn-red { background: #ff4444; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-family: monospace; font-size: 1rem; }
+  .btn-red:hover { background: #ff6666; }
+  .btn-green { background: #00aa55; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-family: monospace; font-size: 0.85rem; }
+  .btn-green:hover { background: #00cc66; }
+  .btn-ghost { background: #222; color: #aaa; border: 1px solid #444; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: monospace; font-size: 0.8rem; }
+  .btn-ghost:hover { background: #2a2a2a; color: #fff; }
+  .btn-ghost.selected { border-color: #00ff88; color: #00ff88; }
+
+  /* run history */
+  .history-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .history-controls span { color: #666; font-size: 0.8rem; }
+  #historyList { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; margin-bottom: 14px; }
+  .run-row { display: flex; align-items: center; gap: 10px; background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px 12px; font-size: 0.82rem; }
+  .run-row .run-id { color: #444; min-width: 28px; }
+  .run-row .run-name { color: #ccc; flex: 1; }
+  .run-row .run-time { color: #555; font-size: 0.75rem; }
+  .run-row .run-rps { color: #00ff88; min-width: 70px; text-align: right; }
+  .run-row .run-p99 { color: #ffaa00; min-width: 70px; text-align: right; }
+  .run-row .run-err { color: #ff4444; min-width: 70px; text-align: right; }
+
+  /* compare result */
+  #compareResult { display: none; }
+  #compareResult table td:first-child { color: #666; }
+  #compareResult table td:nth-child(2) { color: #aaa; }
+  #compareResult table td:nth-child(3) { color: #aaa; }
+  .delta-good { color: #00ff88 !important; }
+  .delta-bad  { color: #ff4444 !important; }
+  .delta-neutral { color: #888 !important; }
+
   .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00ff88; margin-right: 8px; animation: pulse 1s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 </style>
 </head>
 <body>
 <h1><span class="status"></span>sudd: Live Load Test Dashboard</h1>
 
+<!-- stat cards -->
 <div class="stats">
   <div class="stat"><div class="value" id="rps">0</div><div class="label">RPS</div></div>
   <div class="stat"><div class="value" id="p99">0ms</div><div class="label">p99 Latency</div></div>
@@ -35,20 +78,63 @@
   <div class="stat"><div class="value" id="total">0</div><div class="label">Total Requests</div></div>
 </div>
 
+<!-- live charts -->
 <div class="charts">
   <div class="chart-card">
-    <h2>Latency Percentiles (ms)</h2>
+    <h3>Latency Percentiles (ms)</h3>
     <canvas id="latencyChart"></canvas>
   </div>
   <div class="chart-card">
-    <h2>RPS vs Error Rate</h2>
+    <h3>RPS vs Error Rate</h3>
     <canvas id="rpsChart"></canvas>
   </div>
 </div>
 
-<button onclick="stopTest()">⏹ Abort Test</button>
+<!-- per-endpoint breakdown table -->
+<div class="card">
+  <h3>Per-Endpoint Breakdown</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Endpoint</th>
+        <th>Requests</th>
+        <th>RPS</th>
+        <th>p99 (ms)</th>
+        <th>Error Rate</th>
+      </tr>
+    </thead>
+    <tbody id="endpointTable">
+      <tr class="empty-row"><td colspan="5">— no endpoint data yet —</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- abort button -->
+<button class="btn-red" onclick="stopTest()">⏹ Abort Test</button>
+
+<!-- run history browser -->
+<h2 class="section">Run History</h2>
+<div class="card">
+  <h3>Past Runs</h3>
+  <div id="historyList"><div style="color:#444;font-size:0.8rem;">Loading...</div></div>
+  <div class="history-controls">
+    <span>Compare:</span>
+    <span id="selA" style="color:#888">A: none</span>
+    <span id="selB" style="color:#888">B: none</span>
+    <button class="btn-green" onclick="runCompare()">Compare Selected</button>
+    <button class="btn-ghost" onclick="clearSelection()">Clear</button>
+    <button class="btn-ghost" onclick="loadHistory()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- compare result -->
+<div class="card" id="compareResult">
+  <h3>Comparison Result</h3>
+  <table id="compareTable"></table>
+</div>
 
 <script>
+// ── charts ─────────────────────────────────────────────────────────────────
 const MAX_POINTS = 60;
 const labels = [];
 
@@ -62,7 +148,7 @@ const latencyChart = new Chart(document.getElementById('latencyChart'), {
       { label: 'p99', data: [], borderColor: '#ff4444', tension: 0.3, pointRadius: 0 },
     ]
   },
-  options: { animation: false, scales: { x: { display: false }, y: { beginAtZero: true } }, plugins: { legend: { labels: { color: '#888' } } } }
+  options: { animation: false, scales: { x: { display: false }, y: { beginAtZero: true, ticks: { color: '#666' } } }, plugins: { legend: { labels: { color: '#888' } } } }
 });
 
 const rpsChart = new Chart(document.getElementById('rpsChart'), {
@@ -70,22 +156,22 @@ const rpsChart = new Chart(document.getElementById('rpsChart'), {
   data: {
     labels,
     datasets: [
-      { label: 'RPS', data: [], borderColor: '#00ff88', tension: 0.3, pointRadius: 0, yAxisID: 'y' },
+      { label: 'RPS',     data: [], borderColor: '#00ff88', tension: 0.3, pointRadius: 0, yAxisID: 'y'  },
       { label: 'Error %', data: [], borderColor: '#ff4444', tension: 0.3, pointRadius: 0, yAxisID: 'y1' },
     ]
   },
   options: {
     animation: false,
     scales: {
-      x: { display: false },
-      y: { beginAtZero: true, position: 'left' },
-      y1: { beginAtZero: true, position: 'right', max: 100 }
+      x:  { display: false },
+      y:  { beginAtZero: true, position: 'left',  ticks: { color: '#666' } },
+      y1: { beginAtZero: true, position: 'right', max: 100, ticks: { color: '#666' } }
     },
     plugins: { legend: { labels: { color: '#888' } } }
   }
 });
 
-function push(chart, ...values) {
+function pushChart(chart, ...values) {
   values.forEach((v, i) => chart.data.datasets[i].data.push(v));
   if (chart.data.labels.length > MAX_POINTS) {
     chart.data.labels.shift();
@@ -94,24 +180,174 @@ function push(chart, ...values) {
   chart.update();
 }
 
+// ── websocket ───────────────────────────────────────────────────────────────
 const ws = new WebSocket('ws://' + location.host + '/ws');
 ws.onmessage = (e) => {
   const d = JSON.parse(e.data);
-  document.getElementById('rps').textContent = d.rps.toFixed(1);
-  document.getElementById('p99').textContent = d.p99 + 'ms';
+
+  document.getElementById('rps').textContent   = d.rps.toFixed(1);
+  document.getElementById('p99').textContent   = d.p99 + 'ms';
   document.getElementById('errors').textContent = d.error_rate.toFixed(2) + '%';
   document.getElementById('total').textContent = d.total_requests;
 
   const t = new Date(d.timestamp * 1000).toLocaleTimeString();
   latencyChart.data.labels.push(t);
   rpsChart.data.labels.push(t);
-  push(latencyChart, d.p50, d.p95, d.p99);
-  push(rpsChart, d.rps, d.error_rate);
+  pushChart(latencyChart, d.p50, d.p95, d.p99);
+  pushChart(rpsChart, d.rps, d.error_rate);
+
+  // per-endpoint breakdown
+  if (d.endpoints && d.endpoints.length > 0) {
+    const tbody = document.getElementById('endpointTable');
+    tbody.innerHTML = '';
+    d.endpoints.forEach(ep => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="ep-name">${ep.name}</td>
+        <td>${ep.requests}</td>
+        <td>${ep.rps.toFixed(1)}</td>
+        <td>${ep.p99}ms</td>
+        <td class="ep-err">${ep.error_rate.toFixed(2)}%</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
 };
 
+// ── abort ───────────────────────────────────────────────────────────────────
 function stopTest() {
   fetch('/api/stop', { method: 'POST' });
 }
+
+// ── run history ─────────────────────────────────────────────────────────────
+let selectedA = null;
+let selectedB = null;
+
+async function loadHistory() {
+  const res = await fetch('/api/runs');
+  const runs = await res.json();
+  const list = document.getElementById('historyList');
+  if (!runs || runs.length === 0) {
+    list.innerHTML = '<div style="color:#444;font-size:0.8rem;">No past runs yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  runs.forEach(run => {
+    const summary = (() => { try { return JSON.parse(run.summary); } catch { return {}; } })();
+    const date = new Date(run.timestamp * 1000).toLocaleString();
+    const rps = summary.avg_rps ? summary.avg_rps.toFixed(1) + ' rps' : '—';
+    const p99 = summary.p99_ms ? summary.p99_ms + 'ms' : '—';
+    const err = summary.error_rate_pct != null ? summary.error_rate_pct.toFixed(1) + '%' : '—';
+
+    const row = document.createElement('div');
+    row.className = 'run-row';
+    row.id = 'run-' + run.id;
+    row.innerHTML = `
+      <span class="run-id">#${run.id}</span>
+      <span class="run-name">${run.name}</span>
+      <span class="run-time">${date}</span>
+      <span class="run-rps">${rps}</span>
+      <span class="run-p99">${p99}</span>
+      <span class="run-err">${err}</span>
+      <button class="btn-ghost" onclick="selectRun(${run.id}, '${run.name}')">Select</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function selectRun(id, name) {
+  if (selectedA === null) {
+    selectedA = id;
+    document.getElementById('selA').textContent = `A: #${id} (${name})`;
+    document.getElementById('selA').style.color = '#00ff88';
+    document.getElementById('run-' + id).querySelector('button').classList.add('selected');
+    document.getElementById('run-' + id).querySelector('button').textContent = '✓ A';
+  } else if (selectedB === null && id !== selectedA) {
+    selectedB = id;
+    document.getElementById('selB').textContent = `B: #${id} (${name})`;
+    document.getElementById('selB').style.color = '#ffaa00';
+    document.getElementById('run-' + id).querySelector('button').classList.add('selected');
+    document.getElementById('run-' + id).querySelector('button').textContent = '✓ B';
+  }
+}
+
+function clearSelection() {
+  selectedA = null;
+  selectedB = null;
+  document.getElementById('selA').textContent = 'A: none';
+  document.getElementById('selA').style.color = '#888';
+  document.getElementById('selB').textContent = 'B: none';
+  document.getElementById('selB').style.color = '#888';
+  document.getElementById('compareResult').style.display = 'none';
+  loadHistory();
+}
+
+async function runCompare() {
+  if (selectedA === null || selectedB === null) {
+    alert('Select two runs first.');
+    return;
+  }
+  const res = await fetch(`/api/compare?a=${selectedA}&b=${selectedB}`);
+  if (!res.ok) { alert('Compare failed.'); return; }
+  const data = await res.json();
+
+  const a = JSON.parse(data.run_a.summary);
+  const b = JSON.parse(data.run_b.summary);
+
+  const metrics = [
+    { label: 'Total Requests', ka: 'total_requests', kb: 'total_requests', unit: '',   lowerBetter: false },
+    { label: 'Avg RPS',        ka: 'avg_rps',        kb: 'avg_rps',        unit: ' rps', lowerBetter: false },
+    { label: 'p50',            ka: 'p50_ms',         kb: 'p50_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'p75',            ka: 'p75_ms',         kb: 'p75_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'p90',            ka: 'p90_ms',         kb: 'p90_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'p95',            ka: 'p95_ms',         kb: 'p95_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'p99',            ka: 'p99_ms',         kb: 'p99_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'p999',           ka: 'p999_ms',        kb: 'p999_ms',        unit: 'ms', lowerBetter: true  },
+    { label: 'Max',            ka: 'max_ms',         kb: 'max_ms',         unit: 'ms', lowerBetter: true  },
+    { label: 'Errors',         ka: 'errors',         kb: 'errors',         unit: '',   lowerBetter: true  },
+    { label: 'Error Rate',     ka: 'error_rate_pct', kb: 'error_rate_pct', unit: '%',  lowerBetter: true  },
+  ];
+
+  const nameA = data.run_a.name;
+  const nameB = data.run_b.name;
+
+  let html = `<thead><tr>
+    <th>Metric</th>
+    <th>#${selectedA} — ${nameA}</th>
+    <th>#${selectedB} — ${nameB}</th>
+    <th>Delta</th>
+  </tr></thead><tbody>`;
+
+  metrics.forEach(m => {
+    const va = a[m.ka] ?? 0;
+    const vb = b[m.kb] ?? 0;
+    const delta = vb - va;
+    const sign = delta >= 0 ? '+' : '';
+    const fmt = v => typeof v === 'float' || (v % 1 !== 0) ? v.toFixed(2) : v;
+
+    let cls = 'delta-neutral';
+    if (delta !== 0) {
+      const improved = m.lowerBetter ? delta < 0 : delta > 0;
+      cls = improved ? 'delta-good' : 'delta-bad';
+    }
+    const icon = cls === 'delta-good' ? '✅' : cls === 'delta-bad' ? '🔺' : '—';
+
+    html += `<tr>
+      <td>${m.label}</td>
+      <td>${fmt(va)}${m.unit}</td>
+      <td>${fmt(vb)}${m.unit}</td>
+      <td class="${cls}">${sign}${fmt(delta)}${m.unit} ${icon}</td>
+    </tr>`;
+  });
+
+  html += '</tbody>';
+  document.getElementById('compareTable').innerHTML = html;
+  document.getElementById('compareResult').style.display = 'block';
+  document.getElementById('compareResult').scrollIntoView({ behavior: 'smooth' });
+}
+
+// load history on page open
+loadHistory();
 </script>
 </body>
 </html>

@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-//since Job is what we send to a worker which is  the url to hit;
-
 type Job struct {
 	Name           string
 	URL            string
@@ -22,8 +20,6 @@ type Job struct {
 	BasicAuth      string
 }
 
-//and since Result is what the worker sends back after firing a request
-
 type Result struct {
 	Latency      time.Duration
 	StatusCode   int
@@ -33,9 +29,24 @@ type Result struct {
 	EndpointName string
 }
 
-//listening by RunWorker for jobs and firing HTTP requests
+// one shared client per worker goroutine — created once, reused forever
+var sharedTransport = &http.Transport{
+	ForceAttemptHTTP2:     true,
+	DisableKeepAlives:     false,
+	MaxIdleConns:          1000,
+	MaxIdleConnsPerHost:   1000,
+	MaxConnsPerHost:       0,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+}
 
 func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: sharedTransport,
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -45,22 +56,8 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				return
 			}
 
-			// per-request timeout
-			timeout := job.Timeout
-			if timeout == 0 {
-				timeout = 10 * time.Second
-			}
-
-			// HTTP/2 + keep-alive
-			client := &http.Client{
-				Timeout: timeout,
-				Transport: &http.Transport{
-					ForceAttemptHTTP2:   true,
-					DisableKeepAlives:   false,
-					MaxIdleConns:        100,
-					IdleConnTimeout:     90 * time.Second,
-					TLSHandshakeTimeout: 10 * time.Second,
-				},
+			if job.Timeout > 0 {
+				client.Timeout = job.Timeout
 			}
 
 			start := time.Now()
@@ -81,13 +78,10 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				continue
 			}
 
-			// add headers from job
-			// add headers from job
 			for k, v := range job.Headers {
 				req.Header.Set(k, v)
 			}
 
-			// basic auth
 			if job.BasicAuth != "" {
 				parts := strings.SplitN(job.BasicAuth, ":", 2)
 				if len(parts) == 2 {
