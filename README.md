@@ -16,8 +16,7 @@ A fast, open-source HTTP load testing tool written in Go — with a live web das
 ![Terminal run](docs/demoterminal.gif)
 
 **Web dashboard**
-https://github.com/user-attachments/assets/3678d992-1896-4b43-81d6-312851cac810
-
+<video src="https://github.com/user-attachments/assets/3678d992-1896-4b43-81d6-312851cac810" controls autoplay loop></video>
 **YAML scenario**
 ![YAML scenario](docs/YAMLscenario.gif)
 
