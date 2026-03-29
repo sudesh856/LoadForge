@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sudesh856/suddpanzer/internal/dnscache"
 	"github.com/sudesh856/suddpanzer/internal/grpcworker"
 	"github.com/sudesh856/suddpanzer/internal/scripting"
 	"github.com/sudesh856/suddpanzer/internal/tcpworker"
@@ -85,6 +87,19 @@ var runCmd = &cobra.Command{
 				fmt.Println("scenario error:", err)
 				return
 			}
+
+			// ── CHANGE 2: Wire DNS resolver after loading scenario ──────────
+			// set up DNS resolver (caching + optional custom servers/overrides)
+			dnsResolver, err := dnscache.New(dnscache.Config{
+				CacheTTL:  s.DNS.CacheTTL,
+				Servers:   s.DNS.Servers,
+				Overrides: s.DNS.Overrides,
+			})
+			if err != nil {
+				fmt.Println("dns config error:", err)
+				return
+			}
+			worker.SetResolver(dnsResolver)
 
 			rampStages := make([]ramp.Stage, len(s.Stages))
 			for i, st := range s.Stages {
@@ -199,6 +214,11 @@ var runCmd = &cobra.Command{
 				}
 			}()
 
+			sharedJar, err := worker.NewCookieJar()
+			if err != nil {
+				log.Fatal("could not create cookie jar:", err)
+			}
+
 			scriptPools := make(map[string]*scripting.ScriptPool)
 			luaScriptPools := make(map[string]*scripting.LuaScriptPool)
 			for _, ep := range s.Endpoints {
@@ -267,7 +287,11 @@ var runCmd = &cobra.Command{
 								ReadTimeout:  ep.ParsedTCPReadTimeout,
 							})
 						} else {
-							// ── CHANGE 1: Add Lua routing and assertions ─────────────
+							// Assign jar when building the HTTP job
+							var jar http.CookieJar
+							if ep.CookieSession {
+								jar = sharedJar
+							}
 							job := worker.Job{
 								Name:           ep.Name,
 								URL:            epURL,
@@ -276,7 +300,8 @@ var runCmd = &cobra.Command{
 								ExpectedStatus: ep.ExpectedStatus,
 								Headers:        ep.Headers,
 								BasicAuth:      ep.BasicAuth,
-								Assertions:     ep.Assertions, // ← ADDED: response assertions
+								Assertions:     ep.Assertions,
+								CookieJar:      jar,
 							}
 							if ep.Script != "" {
 								if strings.HasSuffix(ep.Script, ".lua") {

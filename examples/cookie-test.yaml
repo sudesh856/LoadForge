@@ -1,0 +1,17 @@
+name: cookie-session-test
+stages:
+  - duration: 10s
+    target_vus: 5
+
+endpoints:
+  - name: login
+    url: http://localhost:8081/login
+    method: POST
+    cookie_session: true
+    weight: 90
+
+  - name: get-profile
+    url: http://localhost:8081/profile
+    method: GET
+    cookie_session: true
+    weight: 10

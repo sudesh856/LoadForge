@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"time"
 
+	"golang.org/x/net/publicsuffix"
+
 	"github.com/sudesh856/suddpanzer/internal/assertions"
+	"github.com/sudesh856/suddpanzer/internal/dnscache"
 	"github.com/sudesh856/suddpanzer/internal/scripting"
 )
 
@@ -21,15 +26,10 @@ type Job struct {
 	ExpectedStatus int
 	Timeout        time.Duration
 	BasicAuth      string
-
-	// JS scripting (goja)
-	ScriptPool *scripting.ScriptPool
-
-	// Lua scripting (gopher-lua)
-	LuaScriptPool *scripting.LuaScriptPool
-
-	// Response assertions — run after every HTTP response
-	Assertions []assertions.Assertion
+	ScriptPool     *scripting.ScriptPool
+	LuaScriptPool  *scripting.LuaScriptPool
+	Assertions     []assertions.Assertion
+	CookieJar      http.CookieJar
 }
 
 type Result struct {
@@ -42,24 +42,49 @@ type Result struct {
 	AssertionFailures []assertions.Failure
 }
 
-var sharedTransport = &http.Transport{
-	ForceAttemptHTTP2:     true,
-	DisableKeepAlives:     false,
-	MaxIdleConns:          1000,
-	MaxIdleConnsPerHost:   1000,
-	MaxConnsPerHost:       0,
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 1 * time.Second,
+var defaultResolver = dnscache.Default()
+
+// SetResolver replaces the DNS resolver used by all workers.
+// Call once before starting the pool.
+func SetResolver(r *dnscache.Resolver) {
+	defaultResolver = r
+}
+
+func buildTransport(r *dnscache.Resolver) *http.Transport {
+	return &http.Transport{
+		DialContext:           r.DialContext,
+		ForceAttemptHTTP2:     true,
+		DisableKeepAlives:     false,
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   1000,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
+func NewCookieJar() (http.CookieJar, error) {
+	return cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+}
+
+func NewSessionJars(n int) ([]http.CookieJar, error) {
+	jars := make([]http.CookieJar, n)
+	for i := range jars {
+		jar, err := NewCookieJar()
+		if err != nil {
+			return nil, err
+		}
+		jars[i] = jar
+	}
+	return jars, nil
 }
 
 func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
-	client := &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: sharedTransport,
-	}
+	transport := buildTransport(defaultResolver)
+	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
 
-	jsEngines  := make(map[*scripting.ScriptPool]*scripting.Engine)
+	sessionClients := make(map[http.CookieJar]*http.Client)
+	jsEngines := make(map[*scripting.ScriptPool]*scripting.Engine)
 	luaEngines := make(map[*scripting.LuaScriptPool]*scripting.LuaEngine)
 
 	defer func() {
@@ -77,7 +102,16 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				return
 			}
 
-			// ── JS override ───────────────────────────────────────────────
+			activeClient := client
+			if job.CookieJar != nil {
+				sc, exists := sessionClients[job.CookieJar]
+				if !exists {
+					sc = &http.Client{Timeout: 10 * time.Second, Transport: transport, Jar: job.CookieJar}
+					sessionClients[job.CookieJar] = sc
+				}
+				activeClient = sc
+			}
+
 			if job.ScriptPool != nil {
 				eng, exists := jsEngines[job.ScriptPool]
 				if !exists {
@@ -97,7 +131,6 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				applyOverride(&job, override)
 			}
 
-			// ── Lua override ──────────────────────────────────────────────
 			if job.LuaScriptPool != nil {
 				eng, exists := luaEngines[job.LuaScriptPool]
 				if !exists {
@@ -117,9 +150,7 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				applyOverride(&job, override)
 			}
 
-			// ── HTTP request ──────────────────────────────────────────────
 			start := time.Now()
-
 			method := job.Method
 			if method == "" {
 				method = "GET"
@@ -156,7 +187,14 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				}
 			}
 
-			resp, err := client.Do(req)
+			if job.CookieJar != nil {
+				reqURL, _ := url.Parse(job.URL)
+				for _, cookie := range job.CookieJar.Cookies(reqURL) {
+					req.AddCookie(cookie)
+				}
+			}
+
+			resp, err := activeClient.Do(req)
 			if cancelReq != nil {
 				cancelReq()
 			}
@@ -167,16 +205,19 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				continue
 			}
 
+			if job.CookieJar != nil {
+				reqURL, _ := url.Parse(job.URL)
+				job.CookieJar.SetCookies(reqURL, resp.Cookies())
+			}
+
 			bodyBytes, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 
-			// ── status check ──────────────────────────────────────────────
 			var resultErr error
 			if job.ExpectedStatus != 0 && resp.StatusCode != job.ExpectedStatus {
 				resultErr = fmt.Errorf("expected status %d got %d", job.ExpectedStatus, resp.StatusCode)
 			}
 
-			// ── assertions ────────────────────────────────────────────────
 			var assertFailures []assertions.Failure
 			if len(job.Assertions) > 0 {
 				assertFailures = assertions.Run(job.Name, job.Assertions, resp, bodyBytes)

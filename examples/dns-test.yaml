@@ -1,0 +1,22 @@
+name: dns-cache-test
+dns:
+  cache_ttl: 30s
+  overrides:
+    myapi.local: "127.0.0.1"   
+
+stages:
+  - duration: 5s
+    target_vus: 10
+
+endpoints:
+  - name: via-dns-override
+    url: http://myapi.local:8081/login   
+    method: POST
+    weight: 100
+    assertions:
+      - type: status
+        value: "200"
+
+thresholds:
+  p99_ms: 100
+  error_rate_pct: 5.0

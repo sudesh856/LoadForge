@@ -50,8 +50,15 @@ func (t Thresholds) IsZero() bool {
 	return t.P99Ms == 0 && t.P95Ms == 0 && t.ErrorRatePct == 0 && t.MinRPS == 0
 }
 
+type DNSConfig struct {
+	CacheTTL  string            `yaml:"cache_ttl"`
+	Servers   []string          `yaml:"servers"`
+	Overrides map[string]string `yaml:"overrides"`
+}
+
 type Scenario struct {
 	Name       string     `yaml:"name"`
+	DNS        DNSConfig  `yaml:"dns"`
 	Stages     []Stage    `yaml:"stages"`
 	Endpoints  []Endpoint `yaml:"endpoints"`
 	Thresholds Thresholds `yaml:"thresholds"`
@@ -76,27 +83,25 @@ type Endpoint struct {
 	BasicAuth      string            `yaml:"basic_auth"`
 	Script         string            `yaml:"script"`
 
-	// gRPC
 	GRPCTarget   string `yaml:"grpc_target"`
 	GRPCMethod   string `yaml:"grpc_method"`
 	GRPCPayload  string `yaml:"grpc_payload"`
 	GRPCInsecure bool   `yaml:"grpc_insecure"`
 
-	// WebSocket
 	WSUrl               string        `yaml:"ws_url"`
 	WSPayload           string        `yaml:"ws_payload"`
 	WSReadTimeout       string        `yaml:"ws_read_timeout"`
 	ParsedWSReadTimeout time.Duration `yaml:"-"`
 
-	// Raw TCP
 	TCPTarget            string        `yaml:"tcp_target"`
 	TCPPayload           string        `yaml:"tcp_payload"`
 	TCPReadBytes         int           `yaml:"tcp_read_bytes"`
 	TCPReadTimeout       string        `yaml:"tcp_read_timeout"`
 	ParsedTCPReadTimeout time.Duration `yaml:"-"`
 
-	// Response assertions
 	Assertions []assertions.Assertion `yaml:"assertions"`
+
+	CookieSession bool `yaml:"cookie_session"`
 }
 
 func (e Endpoint) IsGRPC() bool { return e.GRPCTarget != "" }
