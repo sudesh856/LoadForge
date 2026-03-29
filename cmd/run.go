@@ -267,7 +267,7 @@ var runCmd = &cobra.Command{
 								ReadTimeout:  ep.ParsedTCPReadTimeout,
 							})
 						} else {
-							// ── CHANGE 1: Add Lua routing in the job builder ─────────────
+							// ── CHANGE 1: Add Lua routing and assertions ─────────────
 							job := worker.Job{
 								Name:           ep.Name,
 								URL:            epURL,
@@ -276,6 +276,7 @@ var runCmd = &cobra.Command{
 								ExpectedStatus: ep.ExpectedStatus,
 								Headers:        ep.Headers,
 								BasicAuth:      ep.BasicAuth,
+								Assertions:     ep.Assertions, // ← ADDED: response assertions
 							}
 							if ep.Script != "" {
 								if strings.HasSuffix(ep.Script, ".lua") {
@@ -323,20 +324,20 @@ var runCmd = &cobra.Command{
 				scenarioURL = s.Endpoints[0].URL
 			}
 			sum := report.Summary{
-				URL:           scenarioURL,
-				ScenarioName:  s.Name,
-				DurationSecs:  elapsed.Seconds(),
-				TotalRequests: agg.TotalRequests(),
-				AvgRPS:        agg.RPS(elapsed),
-				P50:           agg.P50(),
-				P75:           agg.P75(),
-				P90:           agg.P90(),
-				P95:           agg.P95(),
-				P99:           agg.P99(),
-				P999:          agg.P999(),
-				Max:           agg.Max(),
-				Errors:        agg.ErrorCount(),
-				ErrorRate:     agg.ErrorRate(),
+				URL:            scenarioURL,
+				ScenarioName:   s.Name,
+				DurationSecs:   elapsed.Seconds(),
+				TotalRequests:  agg.TotalRequests(),
+				AvgRPS:         agg.RPS(elapsed),
+				P50:            agg.P50(),
+				P75:            agg.P75(),
+				P90:            agg.P90(),
+				P95:            agg.P95(),
+				P99:            agg.P99(),
+				P999:           agg.P999(),
+				Max:            agg.Max(),
+				Errors:         agg.ErrorCount(),
+				ErrorRate:      agg.ErrorRate(),
 				ErrorBreakdown: agg.ErrorBreakdown(),
 			}
 
@@ -514,19 +515,19 @@ var runCmd = &cobra.Command{
 
 		elapsed := time.Since(start)
 		sum := report.Summary{
-			URL:           url,
-			DurationSecs:  elapsed.Seconds(),
-			TotalRequests: agg.TotalRequests(),
-			AvgRPS:        agg.RPS(elapsed),
-			P50:           agg.P50(),
-			P75:           agg.P75(),
-			P90:           agg.P90(),
-			P95:           agg.P95(),
-			P99:           agg.P99(),
-			P999:          agg.P999(),
-			Max:           agg.Max(),
-			Errors:        agg.ErrorCount(),
-			ErrorRate:     agg.ErrorRate(),
+			URL:            url,
+			DurationSecs:   elapsed.Seconds(),
+			TotalRequests:  agg.TotalRequests(),
+			AvgRPS:         agg.RPS(elapsed),
+			P50:            agg.P50(),
+			P75:            agg.P75(),
+			P90:            agg.P90(),
+			P95:            agg.P95(),
+			P99:            agg.P99(),
+			P999:           agg.P999(),
+			Max:            agg.Max(),
+			Errors:         agg.ErrorCount(),
+			ErrorRate:      agg.ErrorRate(),
 			ErrorBreakdown: agg.ErrorBreakdown(),
 		}
 
@@ -652,11 +653,11 @@ func printScenarioSummary(sum report.Summary) {
 	fmt.Printf("Errors         : %d\n", sum.Errors)
 	fmt.Printf("Error Rate     : %.2f%%\n", sum.ErrorRate)
 	if len(sum.ErrorBreakdown) > 0 {
-    for msg, count := range sum.ErrorBreakdown {
-        fmt.Printf("  %dx %s\n", count, msg)
-    }
-}
-fmt.Printf("=================================\n")
+		for msg, count := range sum.ErrorBreakdown {
+			fmt.Printf("  %dx %s\n", count, msg)
+		}
+	}
+	fmt.Printf("=================================\n")
 }
 
 func printSingleSummary(sum report.Summary, vus int) {
@@ -679,11 +680,11 @@ func printSingleSummary(sum report.Summary, vus int) {
 	fmt.Printf("Errors         : %d\n", sum.Errors)
 	fmt.Printf("Error Rate     : %.2f%%\n", sum.ErrorRate)
 	if len(sum.ErrorBreakdown) > 0 {
-    for msg, count := range sum.ErrorBreakdown {
-        fmt.Printf("  %dx %s\n", count, msg)
-    }
-}
-fmt.Printf("=================================\n")
+		for msg, count := range sum.ErrorBreakdown {
+			fmt.Printf("  %dx %s\n", count, msg)
+		}
+	}
+	fmt.Printf("=================================\n")
 }
 
 // mergeResults fans multiple result channels into one.

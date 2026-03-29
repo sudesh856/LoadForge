@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/sudesh856/suddpanzer/internal/assertions"
 )
 
 type Thresholds struct {
@@ -92,6 +94,9 @@ type Endpoint struct {
 	TCPReadBytes         int           `yaml:"tcp_read_bytes"`
 	TCPReadTimeout       string        `yaml:"tcp_read_timeout"`
 	ParsedTCPReadTimeout time.Duration `yaml:"-"`
+
+	// Response assertions
+	Assertions []assertions.Assertion `yaml:"assertions"`
 }
 
 func (e Endpoint) IsGRPC() bool { return e.GRPCTarget != "" }
@@ -160,7 +165,6 @@ func (s *Scenario) Validate() error {
 			}
 			continue
 		}
-		// HTTP
 		if ep.URL == "" {
 			return fmt.Errorf("Endpoint [%d] missing url.", i)
 		}

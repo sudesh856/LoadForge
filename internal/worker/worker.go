@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sudesh856/suddpanzer/internal/assertions"
 	"github.com/sudesh856/suddpanzer/internal/scripting"
 )
 
@@ -21,18 +22,24 @@ type Job struct {
 	Timeout        time.Duration
 	BasicAuth      string
 
+	// JS scripting (goja)
 	ScriptPool *scripting.ScriptPool
 
+	// Lua scripting (gopher-lua)
 	LuaScriptPool *scripting.LuaScriptPool
+
+	// Response assertions — run after every HTTP response
+	Assertions []assertions.Assertion
 }
 
 type Result struct {
-	Latency      time.Duration
-	StatusCode   int
-	Err          error
-	Bytes        int64
-	Body         []byte
-	EndpointName string
+	Latency           time.Duration
+	StatusCode        int
+	Err               error
+	Bytes             int64
+	Body              []byte
+	EndpointName      string
+	AssertionFailures []assertions.Failure
 }
 
 var sharedTransport = &http.Transport{
@@ -52,7 +59,7 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 		Transport: sharedTransport,
 	}
 
-	jsEngines := make(map[*scripting.ScriptPool]*scripting.Engine)
+	jsEngines  := make(map[*scripting.ScriptPool]*scripting.Engine)
 	luaEngines := make(map[*scripting.LuaScriptPool]*scripting.LuaEngine)
 
 	defer func() {
@@ -70,6 +77,7 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				return
 			}
 
+			// ── JS override ───────────────────────────────────────────────
 			if job.ScriptPool != nil {
 				eng, exists := jsEngines[job.ScriptPool]
 				if !exists {
@@ -89,6 +97,7 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				applyOverride(&job, override)
 			}
 
+			// ── Lua override ──────────────────────────────────────────────
 			if job.LuaScriptPool != nil {
 				eng, exists := luaEngines[job.LuaScriptPool]
 				if !exists {
@@ -108,6 +117,7 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 				applyOverride(&job, override)
 			}
 
+			// ── HTTP request ──────────────────────────────────────────────
 			start := time.Now()
 
 			method := job.Method
@@ -160,18 +170,29 @@ func RunWorker(ctx context.Context, jobs <-chan Job, results chan<- Result) {
 			bodyBytes, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 
+			// ── status check ──────────────────────────────────────────────
 			var resultErr error
 			if job.ExpectedStatus != 0 && resp.StatusCode != job.ExpectedStatus {
 				resultErr = fmt.Errorf("expected status %d got %d", job.ExpectedStatus, resp.StatusCode)
 			}
 
+			// ── assertions ────────────────────────────────────────────────
+			var assertFailures []assertions.Failure
+			if len(job.Assertions) > 0 {
+				assertFailures = assertions.Run(job.Name, job.Assertions, resp, bodyBytes)
+				if len(assertFailures) > 0 && resultErr == nil {
+					resultErr = fmt.Errorf("assertion failed: %s", assertFailures[0].Message)
+				}
+			}
+
 			results <- Result{
-				Latency:      latency,
-				StatusCode:   resp.StatusCode,
-				Bytes:        int64(len(bodyBytes)),
-				Body:         bodyBytes,
-				EndpointName: job.Name,
-				Err:          resultErr,
+				Latency:           latency,
+				StatusCode:        resp.StatusCode,
+				Bytes:             int64(len(bodyBytes)),
+				Body:              bodyBytes,
+				EndpointName:      job.Name,
+				Err:               resultErr,
+				AssertionFailures: assertFailures,
 			}
 		}
 	}

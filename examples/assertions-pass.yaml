@@ -1,0 +1,21 @@
+name: assertion-pass-test
+stages:
+  - duration: 5s
+    target_vus: 3
+
+endpoints:
+  - name: get-passing
+    url: https://httpbin.org/get
+    method: GET
+    weight: 100
+    assertions:
+      - type: status
+        value: "200"
+      - type: header
+        key: Content-Type
+        contains: application/json
+      - type: body_contains
+        value: "httpbin.org"
+      - type: json_field
+        path: headers.Host
+        contains: httpbin
